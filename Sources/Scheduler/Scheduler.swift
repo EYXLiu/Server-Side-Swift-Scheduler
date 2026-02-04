@@ -7,7 +7,7 @@ public class Scheduler {
     // singleton
     public static let shared: Scheduler = Scheduler()
     private var tasks: [SchedulerTask] = []
-    private var currentTaskIndex: Int = 0
+    private var currentTask: SchedulerTask?
     var shouldYield: Bool = false
 
     public func addTask(_ task: SchedulerTask) {
@@ -25,19 +25,22 @@ public class Scheduler {
         }
     }
 
+    private func scheduleNext() {
+        let readyTasks: [SchedulerTask] = tasks.filter { $0.state == .ready }
+        guard !readyTasks.isEmpty else { return }
+
+        if let task: SchedulerTask = readyTasks.min(by: { $0.priority < $1.priority }) {
+            currentTask = task
+        }
+    }
+
     public func start(timeSliceMs: UInt32 = 50) {
         setupTimer(timeSliceMs: timeSliceMs)
 
         while tasks.contains(where: { $0.state != .finished }) {
-            let task: SchedulerTask = tasks[currentTaskIndex]
-            guard task.state != .finished else {
-                currentTaskIndex = (currentTaskIndex + 1) % tasks.count
-                continue
-            }
+            scheduleNext()
+            currentTask?.run()
 
-            task.run()
-
-            currentTaskIndex = (currentTaskIndex + 1) % tasks.count
         }
     }
 

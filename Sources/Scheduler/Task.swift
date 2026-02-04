@@ -14,6 +14,7 @@ public class SchedulerTask {
     var state: TaskState
     var priority: Int
     let work: () -> Void
+    var cyclesExecuted: UInt64 = 0 // for metrics
 
     public init(pid: Int, priority: Int, work: @escaping () -> Void) {
         self.pid = pid
