@@ -2,27 +2,27 @@ import Foundation
 import CShims
 import Darwin
 
-@MainActor
-public class Scheduler {
+public class Scheduler: @unchecked Sendable {
     // singleton
     public static let shared: Scheduler = Scheduler()
     private var tasks: [SchedulerTask] = []
     private var currentTask: SchedulerTask?
+    private var lock: NSLock = NSLock()
     var shouldYield: Bool = false
+
+    private var nextPid: Int = 1
+    private let pidLock: NSLock = NSLock()
+
+    public func allocatePid() -> Int {
+        pidLock.lock()
+        defer { pidLock.unlock() }
+        let pid: Int = nextPid
+        nextPid += 1
+        return pid
+    }
 
     public func addTask(_ task: SchedulerTask) {
         tasks.append(task)
-    }
-
-    private func setupTimer(timeSliceMs: UInt32) {
-        DispatchQueue.global().async {
-            while true {
-                usleep(timeSliceMs * 1_000)
-                DispatchQueue.main.async {
-                    self.shouldYield = true
-                }
-            }
-        }
     }
 
     private func scheduleNext() {
@@ -35,12 +35,9 @@ public class Scheduler {
     }
 
     public func start(timeSliceMs: UInt32 = 50) {
-        setupTimer(timeSliceMs: timeSliceMs)
-
         while tasks.contains(where: { $0.state != .finished }) {
             scheduleNext()
             currentTask?.run()
-
         }
     }
 
@@ -52,9 +49,14 @@ public class Scheduler {
         }
     }
 
+    public func signalInterrupt(for pid: Int) {
+        guard let task: InterruptSchedulerTask = tasks.first(where: { $0.pid == pid }) as? InterruptSchedulerTask else { return }
+        task.signalInterrupt()
+    }
+
     public func printMetrics() {
         print("--- Task Metrics ---")
-        for task in tasks {
+        for task: SchedulerTask in tasks {
             print("Task \(task.pid): executed cycles = \(task.cyclesExecuted)")
         }
     }
