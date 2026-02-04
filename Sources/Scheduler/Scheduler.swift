@@ -26,7 +26,7 @@ public class Scheduler {
     }
 
     private func scheduleNext() {
-        let readyTasks: [SchedulerTask] = tasks.filter { $0.state == .ready }
+        let readyTasks: [SchedulerTask] = tasks.filter { $0.state == .ready || ( $0.state == .blocked && !$0.isBlocked()) }
         guard !readyTasks.isEmpty else { return }
 
         if let task: SchedulerTask = readyTasks.min(by: { $0.priority < $1.priority }) {
