@@ -47,7 +47,30 @@ public class Scheduler {
     public func yieldIfNeeded() {
         if shouldYield {
             shouldYield = false
+            currentTask?.state = .ready
             return
+        }
+    }
+
+    public func printMetrics() {
+        print("--- Task Metrics ---")
+        for task in tasks {
+            print("Task \(task.pid): executed cycles = \(task.cyclesExecuted)")
+        }
+    }
+
+    public func printMemoryUsage() {
+        var info: task_basic_info = task_basic_info()
+        var count: mach_msg_type_number_t = mach_msg_type_number_t(MemoryLayout<task_basic_info>.size / MemoryLayout<natural_t>.size)
+        let kr = withUnsafeMutablePointer(to: &info) { 
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { 
+                task_info(mach_task_self_, task_flavor_t(TASK_BASIC_INFO), $0, &count)
+            }
+        }
+
+        if kr == KERN_SUCCESS {
+            print("--- Memory Metrics---")
+            print("Memory used: \(info.resident_size / 1024) KB")
         }
     }
 }

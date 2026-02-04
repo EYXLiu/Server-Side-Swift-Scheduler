@@ -31,7 +31,13 @@ public class SchedulerTask {
     public func run() {
         guard state == .ready else { return }
         state = .running
+        let start: UInt64 = mach_absolute_time()
         work(self)
+        let end: UInt64 = mach_absolute_time()
+
+        var info: mach_timebase_info_data_t = mach_timebase_info_data_t()
+        mach_timebase_info(&info)
+        cyclesExecuted += (end - start) * UInt64(info.numer) / UInt64(info.denom)
         if state == .running {
             state = .ready
         }

@@ -12,6 +12,7 @@ let task1: SchedulerTask = SchedulerTask(pid: 1, priority: 2, work: { task in
             usleep(10_000)
         }
         task.incrementStep()
+        Scheduler.shared.yieldIfNeeded()
     default:
         task.finish()
     }
@@ -26,6 +27,7 @@ let task2: SchedulerTask = SchedulerTask(pid: 2, priority: 5, work: { task in
             usleep(10_000)
         }
         task.incrementStep()
+        Scheduler.shared.yieldIfNeeded()
     default:
         task.finish()
     }
@@ -37,9 +39,11 @@ let ioTask: TimedSchedulerTask = TimedSchedulerTask(pid: 3, priority: 1, timedWo
         print("Task 3 starting I/O")
         task.sleep(seconds: 3)
         task.incrementStep()
+        Scheduler.shared.yieldIfNeeded()
     case 1:
         print("Task 3 finished I/O")
         task.incrementStep()
+        Scheduler.shared.yieldIfNeeded()
     default:
         task.finish()
     }
@@ -50,4 +54,5 @@ Scheduler.shared.addTask(task2)
 Scheduler.shared.addTask(ioTask)
 Scheduler.shared.start()
 
-print("Hello, world!")
+Scheduler.shared.printMetrics()
+Scheduler.shared.printMemoryUsage()
