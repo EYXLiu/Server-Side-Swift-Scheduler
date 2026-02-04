@@ -3,6 +3,7 @@
 import Foundation
 import Scheduler
 
+// run in function so declared functions aren't defaulted to mainactor
 func runScheduler() {
     let task1: SchedulerTask = SchedulerTask(priority: 3, work: { task in 
         switch task.step {
@@ -60,6 +61,7 @@ func runScheduler() {
         }
     })
 
+    // interrupt for the interrupt task (after 2 seconds)
     let interruptPid: Int = interruptTask.getPid()
     DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 2) {
         Scheduler.shared.signalInterrupt(for: interruptPid)
