@@ -4,77 +4,78 @@ import Foundation
 import Scheduler
 
 // run in function so declared functions aren't defaulted to mainactor
-func runScheduler() {
-    let task1: SchedulerTask = SchedulerTask(priority: 3, work: { task in 
+func runScheduler() async {
+    let task1: SchedulerTask = await SchedulerTask(priority: 3, work: { task in 
         switch task.step {
         case 0:
             for i: Int in 0..<10 {
                 print("Task \(task.getPid()) running \(i)")
-                Scheduler.shared.yieldIfNeeded()
+                await Scheduler.shared.yieldIfNeeded()
                 usleep(10_000)
             }
-            Scheduler.shared.yieldIfNeeded()
+            await Scheduler.shared.yieldIfNeeded()
         default:
             task.finish()
         }
     })
 
-    let task2: SchedulerTask = SchedulerTask(priority: 4, work: { task in
+    let task2: SchedulerTask = await SchedulerTask(priority: 4, work: { task in
         switch task.step {
         case 0:
             for i: Int in 30..<40 {
                 print("Task \(task.getPid()) running \(i)")
-                Scheduler.shared.yieldIfNeeded()
+                await Scheduler.shared.yieldIfNeeded()
                 usleep(10_000)
             }
-            Scheduler.shared.yieldIfNeeded()
+            await Scheduler.shared.yieldIfNeeded()
         default:
             task.finish()
         }
     })
 
-    let interruptTask: InterruptSchedulerTask = InterruptSchedulerTask(priority: 1, interruptWork: { task in 
+    let interruptTask: InterruptSchedulerTask = await InterruptSchedulerTask(priority: 1, interruptWork: { task in 
         switch task.step {
         case 0:
             print("Task \(task.getPid()) waiting on interrupt")
             task.waitInterrupt()
-            Scheduler.shared.yieldIfNeeded()
+            await Scheduler.shared.yieldIfNeeded()
         case 1:
             print("Task \(task.getPid()) received interrupt")
-            Scheduler.shared.yieldIfNeeded()
+            await Scheduler.shared.yieldIfNeeded()
         default:
             task.finish()
         }
     })
 
-    let ioTask: TimedSchedulerTask = TimedSchedulerTask(priority: 2, timedWork: { task in 
+    let ioTask: TimedSchedulerTask = await TimedSchedulerTask(priority: 2, timedWork: { task in 
         switch task.step {
         case 0:
             print("Task \(task.getPid()) starting I/O")
-            task.sleep(seconds: 3)
-            Scheduler.shared.yieldIfNeeded()
+            task.sleep(seconds: 1)
+            await Scheduler.shared.yieldIfNeeded()
         case 1:
             print("Task \(task.getPid()) finished I/O")
-            Scheduler.shared.yieldIfNeeded()
+            await Scheduler.shared.yieldIfNeeded()
         default:
             task.finish()
         }
     })
 
     // interrupt for the interrupt task (after 2 seconds)
-    let interruptPid: Int = interruptTask.getPid()
-    DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 2) {
-        Scheduler.shared.signalInterrupt(for: interruptPid)
+    Task {
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        // actor isolation guarantees actions are queued, so no race lock
+        Task { await Scheduler.shared.signalInterrupt(for: interruptTask.getPid()) }
     }
 
-    Scheduler.shared.addTask(task1)
-    Scheduler.shared.addTask(task2)
-    Scheduler.shared.addTask(ioTask)
-    Scheduler.shared.addTask(interruptTask)
-    Scheduler.shared.start()
+    await Scheduler.shared.addTask(task1)
+    await Scheduler.shared.addTask(task2)
+    await Scheduler.shared.addTask(ioTask)
+    await Scheduler.shared.addTask(interruptTask)
+    await Scheduler.shared.start()
 
-    Scheduler.shared.printMetrics()
-    Scheduler.shared.printMemoryUsage()
+    await Scheduler.shared.printMetrics()
+    await Scheduler.shared.printMemoryUsage()
 }
 
-runScheduler()
+await runScheduler()

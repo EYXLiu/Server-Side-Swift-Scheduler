@@ -2,7 +2,8 @@ import Foundation
 import CShims
 import Darwin
 
-public class Scheduler: @unchecked Sendable {
+// unchecked as we lock and unlock the tasks to control, otherwise singleton wouldn't be possible
+public actor Scheduler {
     // singleton
     public static let shared: Scheduler = Scheduler()
     private var tasks: [SchedulerTask] = []
@@ -34,10 +35,11 @@ public class Scheduler: @unchecked Sendable {
         }
     }
 
-    public func start(timeSliceMs: UInt32 = 50) {
+    public func start(timeSliceMs: UInt32 = 50) async {
         while tasks.contains(where: { $0.state != .finished }) {
             scheduleNext()
-            currentTask?.run()
+            // caused all schedulers to be unchecked sendables
+            await currentTask?.run()
         }
     }
 
@@ -64,7 +66,7 @@ public class Scheduler: @unchecked Sendable {
     public func printMemoryUsage() {
         var info: task_basic_info = task_basic_info()
         var count: mach_msg_type_number_t = mach_msg_type_number_t(MemoryLayout<task_basic_info>.size / MemoryLayout<natural_t>.size)
-        let kr = withUnsafeMutablePointer(to: &info) { 
+        let kr: kern_return_t = withUnsafeMutablePointer(to: &info) { 
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { 
                 task_info(mach_task_self_, task_flavor_t(TASK_BASIC_INFO), $0, &count)
             }

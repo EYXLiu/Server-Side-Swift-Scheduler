@@ -9,16 +9,20 @@ public enum TaskState {
 }
 
 // each task is in a "goroutine" lightweight task that yields to other tasks 
-public class SchedulerTask {
+// i know unchecked sendable is unsafe but otherwise the scheduler code wouldn't allow run to be called as it might mutate and cause data races
+public class SchedulerTask: @unchecked Sendable {
+    // guarantee that all mutations happen inside Scheduler actor
+    // no references to other threads
+    // actor isolation guarantees sequential access
     let pid: Int
     var state: TaskState
     public var step: Int = 0
     var priority: Int
-    let work: (SchedulerTask) -> Void
+    let work: (SchedulerTask) async -> Void
     var cyclesExecuted: UInt64 = 0 // for metrics
 
-    public init( priority: Int, work: @escaping (SchedulerTask) -> Void) {
-        self.pid = Scheduler.shared.allocatePid()
+    public init( priority: Int, work: @escaping (SchedulerTask) async -> Void) async {
+        self.pid = await Scheduler.shared.allocatePid()
         self.state = .ready
         self.priority = priority
         self.work = work
@@ -28,11 +32,11 @@ public class SchedulerTask {
         false
     }
 
-    public func run() {
+    public func run() async {
         guard state == .ready else { return }
         state = .running
         let start: UInt64 = mach_absolute_time()
-        work(self)
+        await work(self)
         let end: UInt64 = mach_absolute_time()
 
         var info: mach_timebase_info_data_t = mach_timebase_info_data_t()
@@ -62,13 +66,13 @@ public class SchedulerTask {
     }
 }
 
-public class TimedSchedulerTask : SchedulerTask {
+public class TimedSchedulerTask : SchedulerTask, @unchecked Sendable {
     var wakeUpAt: TimeInterval?
 
-    public init(priority: Int, timedWork: @escaping (TimedSchedulerTask) -> Void) {
-        super.init(priority: priority) { task in
+    public init(priority: Int, timedWork: @escaping (TimedSchedulerTask) async -> Void) async {
+        await super.init(priority: priority) { task in
             guard let timedTask = task as? TimedSchedulerTask else { return }
-            timedWork(timedTask)
+            await timedWork(timedTask)
         }
     }
 
@@ -87,13 +91,13 @@ public class TimedSchedulerTask : SchedulerTask {
     }
 }
 
-public class InterruptSchedulerTask : SchedulerTask {
+public class InterruptSchedulerTask : SchedulerTask, @unchecked Sendable {
     private var interrupt: Bool = false
 
-    public init(priority: Int, interruptWork: @escaping (InterruptSchedulerTask) -> Void) {
-        super.init(priority: priority) { task in
+    public init(priority: Int, interruptWork: @escaping (InterruptSchedulerTask) async -> Void) async {
+        await super.init(priority: priority) { task in
             guard let timedTask = task as? InterruptSchedulerTask else { return }
-            interruptWork(timedTask)
+            await interruptWork(timedTask)
         }
     }
 
